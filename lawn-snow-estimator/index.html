@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Instant Estimate | Your Lawn &amp; Snow Co. (Zoracle demo)</title>
+<script>
+/* =====================================================================
+   EDIT HERE: ALL RATES BELOW ARE PLACEHOLDERS (not any real company's
+   real prices). Replace with the business's own rates.
+   Each range is [low, high] in CAD, before HST.
+   ===================================================================== */
+const CONFIG = {
+  businessName: "Your Lawn & Snow Co. (Zoracle demo)",
+  serviceArea: "your service area",
+  bookNowUrl: "#BOOK-NOW-PLACEHOLDER",   // PLACEHOLDER: link to the business's booking form
+  taxLabel: "+ 13% HST",
+  roundTo: 5,
+  services: {
+    mowing: {                       // PLACEHOLDER rates: per visit, by lot size
+      label: "Lawn mowing", icon: "🌱",
+      lotSizes: {
+        small:  { label: "Small (under 4,000 sq ft)",       perVisit: [40, 55] },
+        medium: { label: "Medium (4,000–8,000 sq ft)",      perVisit: [55, 75] },
+        large:  { label: "Large (8,000 sq ft–½ acre)",      perVisit: [75, 110] },
+        xl:     { label: "Extra large (½ acre +)",          perVisit: [110, 170] }
+      },
+      frequency: {
+        weekly:   { label: "Weekly (season)",    visits: 26, discount: 0.10 },
+        biweekly: { label: "Bi-weekly (season)", visits: 13, discount: 0.05 },
+        once:     { label: "One-time cut",       visits: 1,  discount: 0 }
+      }
+    },
+    cleanup: {                      // PLACEHOLDER rates: per cleanup, by lot size
+      label: "Spring / fall cleanup", icon: "🍂",
+      lotSizes: {
+        small:  { label: "Small (under 4,000 sq ft)",  price: [180, 280] },
+        medium: { label: "Medium (4,000–8,000 sq ft)", price: [280, 420] },
+        large:  { label: "Large (8,000 sq ft–½ acre)", price: [420, 650] },
+        xl:     { label: "Extra large (½ acre +)",     price: [650, 1000] }
+      },
+      heavyMultiplier: 1.3          // PLACEHOLDER: heavy leaves / lots of debris
+    },
+    grading: {                      // PLACEHOLDER rates: per sq ft
+      label: "Grading", icon: "🚜",
+      perSqFt: [1.50, 3.00],
+      minimum: 400,
+      topsoilPerSqFt: [0.60, 1.10]  // PLACEHOLDER: add topsoil + seed
+    },
+    trees: {                        // PLACEHOLDER rates: per tree, installed
+      label: "Tree install", icon: "🌳",
+      sizes: {
+        small:  { label: "Small (whip / up to 1.5 m)",       perTree: [150, 250] },
+        medium: { label: "Medium (1.5–2.5 m, 30–45 mm cal.)", perTree: [300, 500] },
+        large:  { label: "Large (2.5 m +, 50 mm+ cal.)",      perTree: [600, 1000] }
+      }
+    },
+    snowRes: {                      // PLACEHOLDER rates: seasonal contract
+      label: "Snow plowing: residential (seasonal)", icon: "❄️",
+      driveways: {
+        single: { label: "Single-car driveway",       season: [450, 600] },
+        double: { label: "Double driveway",           season: [600, 850] },
+        large:  { label: "Long / triple driveway",    season: [850, 1200] }
+      },
+      walkway: [150, 250]           // PLACEHOLDER: walkway / steps shovelling add-on
+    },
+    snowCom: {                      // PLACEHOLDER rates: seasonal contract
+      label: "Snow plowing: small commercial (seasonal)", icon: "🏢",
+      lots: {
+        xs: { label: "Up to 10 parking spaces", season: [2500, 3800] },
+        s:  { label: "11–25 parking spaces",    season: [3800, 6500] },
+        m:  { label: "26–50 parking spaces",    season: [6500, 11000] }
+      },
+      saltMultiplier: 1.25          // PLACEHOLDER: include salting
+    }
+  }
+};
+</script>
+<style>
+  :root{--green:#2f6b3a;--green-d:#1f4a28;--green-l:#e8f2ea;--ink:#1d2420;--muted:#5d6a62;--line:#dde5df;--bg:#f6f8f6;--accent:#e2a63b;}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);line-height:1.45}
+  .demo-bar{background:#fff4d6;color:#6b4e00;font-size:13px;text-align:center;padding:6px 12px;border-bottom:1px solid #f0dca0}
+  header{background:linear-gradient(135deg,var(--green-d),var(--green));color:#fff;padding:22px 20px 56px}
+  header .wrap{max-width:640px;margin:0 auto}
+  .brand{font-weight:800;font-size:20px;letter-spacing:.2px}
+  .brand small{display:block;font-weight:500;opacity:.8;font-size:13px}
+  h1{font-size:26px;margin:16px 0 4px}
+  header p{margin:0;opacity:.9}
+  .stars{color:var(--accent);font-size:14px;margin-top:8px}
+  main{max-width:640px;margin:-40px auto 40px;padding:0 14px}
+  .card{background:#fff;border-radius:16px;box-shadow:0 8px 30px rgba(20,40,25,.10);padding:22px}
+  .steps{display:flex;gap:6px;margin-bottom:18px}
+  .steps span{flex:1;height:5px;border-radius:4px;background:var(--line)}
+  .steps span.on{background:var(--green)}
+  h2{font-size:18px;margin:0 0 12px}
+  .services{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  .svc{border:2px solid var(--line);border-radius:12px;padding:12px;background:#fff;cursor:pointer;text-align:left;font:inherit;color:inherit;transition:.15s}
+  .svc:hover{border-color:#9fc2a6}
+  .svc.sel{border-color:var(--green);background:var(--green-l)}
+  .svc .i{font-size:22px;display:block}
+  .svc b{font-size:14px}
+  label{display:block;font-weight:600;font-size:14px;margin:14px 0 6px}
+  select,input{width:100%;padding:12px;border:1.5px solid var(--line);border-radius:10px;font:inherit;background:#fff}
+  select:focus,input:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(47,107,58,.15)}
+  .check{display:flex;gap:10px;align-items:center;font-weight:500;margin-top:14px}
+  .check input{width:20px;height:20px}
+  .btn{display:block;width:100%;margin-top:18px;padding:14px;border:0;border-radius:12px;background:var(--green);color:#fff;font:inherit;font-weight:700;font-size:16px;cursor:pointer;text-align:center;text-decoration:none}
+  .btn:hover{background:var(--green-d)}
+  .btn.ghost{background:transparent;color:var(--green);border:2px solid var(--green)}
+  .btn.book{background:var(--accent);color:#2b1d00}
+  .muted{color:var(--muted);font-size:13px}
+  .err{color:#b3261e;font-size:13px;margin-top:8px;min-height:1em}
+  .range{text-align:center;padding:18px;border-radius:14px;background:var(--green-l);margin:10px 0}
+  .range .amt{font-size:34px;font-weight:800;color:var(--green-d)}
+  .range .sub{color:var(--muted);font-size:14px}
+  .summary{font-size:14px;border-top:1px solid var(--line);margin-top:12px;padding-top:12px}
+  .summary div{display:flex;justify-content:space-between;padding:3px 0}
+  .hidden{display:none}
+  footer{text-align:center;color:var(--muted);font-size:12px;padding:0 16px 30px}
+  @media (max-width:420px){.services{grid-template-columns:1fr 1fr}h1{font-size:22px}}
+</style>
+</head>
+<body>
+<div class="demo-bar">Zoracle demo: placeholder prices only, not real rates. Every price is replaced with your own</div>
+<header><div class="wrap">
+  <div class="brand" id="brand">Your Lawn &amp; Snow Co. (Zoracle demo)<small id="area"></small></div>
+  <h1>Get an instant ballpark price</h1>
+  <p>Answer 3 quick questions and see a price range in under a minute.</p>
+  <div class="stars">★★★★★ <span style="color:#fff;opacity:.85">Your Google reviews here</span></div>
+</div></header>
+
+<main><div class="card">
+  <div class="steps"><span class="on" id="s1"></span><span id="s2"></span><span id="s3"></span></div>
+
+  <!-- STEP 1: service + details -->
+  <section id="step1">
+    <h2>1. What do you need?</h2>
+    <div class="services" id="services"></div>
+    <div id="details"></div>
+    <div class="err" id="err1"></div>
+    <button class="btn" id="next1">Continue</button>
+  </section>
+
+  <!-- STEP 2: lead capture -->
+  <section id="step2" class="hidden">
+    <h2>2. Where should we send your estimate?</h2>
+    <p class="muted">Your price range shows right after this. No spam. We'll only contact you about this job.</p>
+    <label for="name">Full name</label><input id="name" autocomplete="name" placeholder="Jane Smith">
+    <label for="phone">Phone</label><input id="phone" type="tel" autocomplete="tel" placeholder="519-555-0123">
+    <label for="addr">Property address</label><input id="addr" autocomplete="street-address" placeholder="123 Main St, Your Town ON">
+    <div class="err" id="err2"></div>
+    <button class="btn" id="next2">Show my price range</button>
+    <button class="btn ghost" id="back2">Back</button>
+  </section>
+
+  <!-- STEP 3: result -->
+  <section id="step3" class="hidden">
+    <h2>3. Your ballpark estimate</h2>
+    <div class="range"><div class="amt" id="amt"></div><div class="sub" id="amtSub"></div></div>
+    <div class="summary" id="summary"></div>
+    <p class="muted">This is a ballpark range, not a final quote. Final price is confirmed after a quick look at the property.</p>
+    <a class="btn book" id="book">Book Now</a>
+    <button class="btn ghost" id="restart">Start another estimate</button>
+    <p class="muted" style="text-align:center;margin-top:12px">Demo note: in the live version each lead goes straight to the owner (email/text + spreadsheet), and Book Now opens their existing booking form.</p>
+  </section>
+</div></main>
+<footer>Built by Zoracle, <a href="https://zoracle.ca" style="color:inherit">zoracle.ca</a></footer>
+
+<script>
+const $ = id => document.getElementById(id);
+const S = CONFIG.services;
+const money = n => "$" + Math.round(n).toLocaleString("en-CA");
+const rnd = n => Math.round(n / CONFIG.roundTo) * CONFIG.roundTo;
+const opts = obj => Object.entries(obj).map(([k,v]) => `<option value="${k}">${v.label}</option>`).join("");
+let svc = null, quote = null;
+const leads = []; // demo only: in-memory
+
+$("brand").firstChild.textContent = CONFIG.businessName;
+$("area").textContent = "Serving " + CONFIG.serviceArea;
+
+$("services").innerHTML = Object.entries(S).map(([k,v]) =>
+  `<button type="button" class="svc" data-k="${k}"><span class="i">${v.icon}</span><b>${v.label}</b></button>`).join("");
+document.querySelectorAll(".svc").forEach(b => b.onclick = () => pick(b.dataset.k));
+
+function pick(k){
+  svc = k;
+  document.querySelectorAll(".svc").forEach(b => b.classList.toggle("sel", b.dataset.k === k));
+  const d = $("details"), s = S[k];
+  const forms = {
+    mowing:  () => `<label>Lot size</label><select id="f1">${opts(s.lotSizes)}</select>
+              <label>How often?</label><select id="f2">${opts(s.frequency)}</select>`,
+    cleanup: () => `<label>Lot size</label><select id="f1">${opts(s.lotSizes)}</select>
+              <label class="check"><input type="checkbox" id="f2"> Heavy leaves / lots of debris</label>`,
+    grading: () => `<label>Area to grade (sq ft)</label><input id="f1" type="number" min="1" inputmode="numeric" placeholder="e.g. 1200">
+              <label class="check"><input type="checkbox" id="f2"> Add topsoil + seed</label>`,
+    trees:   () => `<label>Tree size</label><select id="f1">${opts(s.sizes)}</select>
+              <label>Number of trees</label><input id="f2" type="number" min="1" value="1" inputmode="numeric">`,
+    snowRes: () => `<label>Driveway</label><select id="f1">${opts(s.driveways)}</select>
+              <label class="check"><input type="checkbox" id="f2"> Add walkway / steps</label>`,
+    snowCom: () => `<label>Parking lot size</label><select id="f1">${opts(s.lots)}</select>
+              <label class="check"><input type="checkbox" id="f2"> Include salting</label>`
+  };
+  d.innerHTML = forms[k]();
+  $("err1").textContent = "";
+}
+
+function calc(){
+  const s = S[svc], f1 = $("f1"), f2 = $("f2");
+  let lo, hi, unit = "", lines = [["Service", s.label]];
+  switch (svc){
+    case "mowing": {
+      const lot = s.lotSizes[f1.value], fr = s.frequency[f2.value];
+      const m = fr.visits * (1 - fr.discount);
+      lo = lot.perVisit[0] * m; hi = lot.perVisit[1] * m;
+      lines.push(["Lot", lot.label], ["Frequency", fr.label]);
+      if (fr.visits > 1){ lines.push(["Per visit", money(rnd(lot.perVisit[0]*(1-fr.discount)))+"–"+money(rnd(lot.perVisit[1]*(1-fr.discount)))]); unit = `for the season (${fr.visits} visits)`; }
+      else unit = "for one cut";
+      break; }
+    case "cleanup": {
+      const lot = s.lotSizes[f1.value], m = f2.checked ? s.heavyMultiplier : 1;
+      lo = lot.price[0]*m; hi = lot.price[1]*m; unit = "per cleanup";
+      lines.push(["Lot", lot.label], ["Heavy debris", f2.checked ? "Yes" : "No"]); break; }
+    case "grading": {
+      const a = parseFloat(f1.value);
+      if (!(a > 0)) return null;
+      let rlo = s.perSqFt[0], rhi = s.perSqFt[1];
+      if (f2.checked){ rlo += s.topsoilPerSqFt[0]; rhi += s.topsoilPerSqFt[1]; }
+      lo = Math.max(a*rlo, s.minimum); hi = Math.max(a*rhi, s.minimum*1.2); unit = "for the job";
+      lines.push(["Area", a.toLocaleString("en-CA")+" sq ft"], ["Topsoil + seed", f2.checked ? "Yes" : "No"]); break; }
+    case "trees": {
+      const sz = s.sizes[f1.value], n = parseInt(f2.value, 10);
+      if (!(n > 0)) return null;
+      lo = sz.perTree[0]*n; hi = sz.perTree[1]*n; unit = n > 1 ? `for ${n} trees, installed` : "per tree, installed";
+      lines.push(["Size", sz.label], ["Trees", n]); break; }
+    case "snowRes": {
+      const dw = s.driveways[f1.value];
+      lo = dw.season[0] + (f2.checked ? s.walkway[0] : 0); hi = dw.season[1] + (f2.checked ? s.walkway[1] : 0);
+      unit = "for the winter season"; lines.push(["Driveway", dw.label], ["Walkway", f2.checked ? "Yes" : "No"]); break; }
+    case "snowCom": {
+      const lot = s.lots[f1.value], m = f2.checked ? s.saltMultiplier : 1;
+      lo = lot.season[0]*m; hi = lot.season[1]*m; unit = "for the winter season";
+      lines.push(["Lot", lot.label], ["Salting", f2.checked ? "Yes" : "No"]); break; }
+  }
+  return { lo: rnd(lo), hi: rnd(hi), unit, lines };
+}
+
+function step(n){
+  [1,2,3].forEach(i => { $("step"+i).classList.toggle("hidden", i !== n); $("s"+i).classList.toggle("on", i <= n); });
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+$("next1").onclick = () => {
+  if (!svc){ $("err1").textContent = "Pick a service to continue."; return; }
+  quote = calc();
+  if (!quote){ $("err1").textContent = "Please fill in the details above."; return; }
+  step(2);
+};
+$("back2").onclick = () => step(1);
+$("next2").onclick = () => {
+  const name = $("name").value.trim(), phone = $("phone").value.trim(), addr = $("addr").value.trim();
+  if (name.length < 2) return $("err2").textContent = "Please enter your name.";
+  if (phone.replace(/\D/g, "").length < 10) return $("err2").textContent = "Please enter a valid 10-digit phone number.";
+  if (addr.length < 5) return $("err2").textContent = "Please enter the property address.";
+  $("err2").textContent = "";
+  leads.push({ name, phone, addr, service: S[svc].label, low: quote.lo, high: quote.hi, at: new Date().toISOString() });
+  console.log("DEMO lead captured:", leads.at(-1));
+  showResult();
+};
+function showResult(){
+  $("amt").textContent = money(quote.lo) + " – " + money(quote.hi);
+  $("amtSub").textContent = quote.unit + " · " + CONFIG.taxLabel;
+  $("summary").innerHTML = quote.lines.map(([a,b]) => `<div><span>${a}</span><b>${b}</b></div>`).join("");
+  $("book").href = CONFIG.bookNowUrl;
+  step(3);
+}
+$("book").onclick = e => { if (CONFIG.bookNowUrl.startsWith("#")){ e.preventDefault(); alert("Demo: this button opens the business's own booking form."); } };
+$("restart").onclick = () => { svc = null; quote = null; $("details").innerHTML = ""; document.querySelectorAll(".svc").forEach(b => b.classList.remove("sel")); step(1); };
+
+/* Preview mode for screenshots: index.html?preview=result */
+const pv = new URLSearchParams(location.search).get("preview");
+if (pv === "details") pick("mowing");
+if (pv === "result"){
+  pick("mowing"); $("f1").value = "medium"; $("f2").value = "weekly";
+  quote = calc(); $("name").value = "Jane Smith"; showResult();
+}
+</script>
+</body>
+</html>
