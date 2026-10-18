@@ -117,6 +117,12 @@ const CONFIG = {
   .summary{font-size:14px;border-top:1px solid var(--line);margin-top:12px;padding-top:12px}
   .summary div{display:flex;justify-content:space-between;padding:3px 0}
   .hidden{display:none}
+  .xlink{max-width:640px;margin:-22px auto 26px;padding:0 14px}
+  .xlink a{display:flex;gap:12px;align-items:center;background:#fff;border:2px solid var(--green);border-radius:14px;padding:14px 16px;color:var(--ink);text-decoration:none;box-shadow:0 6px 20px rgba(20,40,25,.08)}
+  .xlink a:hover{background:var(--green-l)}
+  .xlink .i{font-size:26px}
+  .xlink b{display:block;color:var(--green-d)}
+  .xlink span.go{margin-left:auto;font-weight:800;color:var(--green);font-size:20px}
   footer{text-align:center;color:var(--muted);font-size:12px;padding:0 16px 30px}
   @media (max-width:420px){.services{grid-template-columns:1fr 1fr}h1{font-size:22px}}
 </style>
@@ -165,6 +171,7 @@ const CONFIG = {
     <p class="muted" style="text-align:center;margin-top:12px">Demo note: in the live version this lead goes straight to Mark (email/text + spreadsheet), and Book Now opens his existing booking form.</p>
   </section>
 </div></main>
+<div class="xlink"><a href="quote-invoice/" id="qiLink"><span class="i">🧾</span><span><b>For Mark: Quote &amp; Invoice Assistant demo</b><span class="muted">Job notes → branded quote → invoice → PDF, in one screen.</span></span><span class="go">→</span></a></div>
 <footer>Instant estimator demo built by Zoracle · zoracle.ca</footer>
 
 <script>

@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:,">
+<title>Quote &amp; Invoice Assistant | Thomson Landscaping (demo)</title>
+<script>
+/* =====================================================================
+   EDIT HERE: ALL RATES BELOW ARE PLACEHOLDERS (not Thomson Landscaping's
+   real prices). Replace with Mark's rates after the discovery call.
+   Prices are in CAD, before HST. Business details are placeholders too.
+   ===================================================================== */
+const CONFIG = {
+  businessName: "Thomson Landscaping (demo)",
+  tagline: "Lawn care · Cleanups · Grading · Tree installs · Snow",
+  serviceArea: "Paris, Brant County & area",
+  phone: "(519) 555-0100 (placeholder)",          // PLACEHOLDER
+  email: "hello@thomsonlandscaping.example",      // PLACEHOLDER
+  website: "thomsonlandscaping.ca",
+  hstNumber: "123456789 RT0001 (placeholder)",    // PLACEHOLDER
+  taxRate: 13,               // Ontario HST, %
+  taxLabel: "HST (13%)",
+  depositPct: 50,            // default deposit, % of total
+  quoteValidDays: 30,        // quote "valid until" = quote date + this
+  invoiceTermsDays: 14,      // invoice "due date" = invoice date + this
+  quotePrefix: "Q-",
+  invoicePrefix: "INV-",
+  storageKey: "zoracle-demo-thomson-quote-invoice-v1", // demo state only, this key only
+  // PLACEHOLDER price list. id is used by the notes matcher below.
+  priceList: [
+    { id: "mow",          name: "Lawn mowing (medium lot)",                      unit: "visit",   rate: 55 },
+    { id: "cleanSpring",  name: "Spring cleanup (medium lot)",                   unit: "cleanup", rate: 350 },
+    { id: "cleanFall",    name: "Fall cleanup (medium lot)",                     unit: "cleanup", rate: 350 },
+    { id: "grading",      name: "Grading",                                       unit: "sq ft",   rate: 2.25 },
+    { id: "topsoil",      name: "Topsoil + seed",                                unit: "sq ft",   rate: 0.85 },
+    { id: "treeSmall",    name: "Tree install, small (up to 1.5 m)",             unit: "tree",    rate: 200 },
+    { id: "treeMed",      name: "Tree install, medium (1.5-2.5 m)",              unit: "tree",    rate: 400 },
+    { id: "snowRes",      name: "Snow plowing, residential seasonal (double drive)", unit: "season", rate: 725 },
+    { id: "snowVisit",    name: "Snow plowing, per visit (residential)",         unit: "visit",   rate: 65 },
+    { id: "snowWalk",     name: "Walkway / steps shovelling add-on",             unit: "season",  rate: 200 },
+    { id: "snowCom",      name: "Snow plowing, small commercial (up to 10 spaces)", unit: "season", rate: 3150 }
+  ],
+  seasonVisits: { weekly: 26, biweekly: 13 }, // used when notes say "weekly"/"bi-weekly"
+  quoteTerms: "Price is a quote based on the details provided and confirmed after a site visit. A deposit is required to book; the balance is due on completion.",
+  invoiceTerms: "Thank you for your business! Payment by e-Transfer, cheque or cash."
+};
+</script>
+<style>
+  :root{--green:#2f6b3a;--green-d:#1f4a28;--green-l:#e8f2ea;--ink:#1d2420;--muted:#5d6a62;--line:#dde5df;--bg:#f6f8f6;--accent:#e2a63b;--red:#b3261e}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);line-height:1.45;padding-bottom:84px}
+  .demo-bar{background:#fff4d6;color:#6b4e00;font-size:13px;text-align:center;padding:6px 12px;border-bottom:1px solid #f0dca0}
+  header{background:linear-gradient(135deg,var(--green-d),var(--green));color:#fff;padding:20px 20px 56px}
+  header .wrap{max-width:1160px;margin:0 auto}
+  .brand{font-weight:800;font-size:20px;letter-spacing:.2px}
+  .brand small{display:block;font-weight:500;opacity:.8;font-size:13px}
+  header h1{font-size:26px;margin:14px 0 4px}
+  header p{margin:0;opacity:.9;max-width:640px}
+  header a{color:#fff}
+  .back{display:inline-block;margin-top:10px;font-size:14px;opacity:.9}
+  main{max-width:1160px;margin:-40px auto 30px;padding:0 14px;display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
+  @media (min-width:980px){main{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.col-doc{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow-y:auto;border-radius:16px}.col-doc .doc-actions{position:sticky;bottom:-18px;background:#fff;margin:0 -18px -18px;padding:12px 18px 18px;border-top:1px solid var(--line)}body{padding-bottom:0}.bar{display:none!important}}
+  .col{display:grid;gap:16px;min-width:0}
+  .card{min-width:0;background:#fff;border-radius:16px;box-shadow:0 8px 30px rgba(20,40,25,.10);padding:18px}
+  .card h2{font-size:17px;margin:0 0 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .tag{font-size:11px;font-weight:800;letter-spacing:.5px;background:#fff4d6;color:#6b4e00;border:1px solid #f0dca0;border-radius:6px;padding:2px 6px}
+  label{display:block;font-weight:600;font-size:13px;margin:10px 0 4px}
+  input,select,textarea{width:100%;padding:10px 11px;border:1.5px solid var(--line);border-radius:10px;font:inherit;font-size:16px;background:#fff;color:inherit;min-width:0}
+  textarea{resize:vertical;min-height:90px}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(47,107,58,.15)}
+  .grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 10px}
+  @media (max-width:520px){.grid2.stack{grid-template-columns:1fr}}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:11px 14px;border:0;border-radius:11px;background:var(--green);color:#fff;font:inherit;font-weight:700;font-size:15px;cursor:pointer;text-decoration:none}
+  .btn:hover{background:var(--green-d)}
+  .btn.ghost{background:transparent;color:var(--green);border:2px solid var(--green);padding:9px 12px}
+  .btn.ghost:hover{background:var(--green-l)}
+  .btn.accent{background:var(--accent);color:#2b1d00}
+  .btn.small{padding:7px 10px;font-size:13px;border-radius:9px}
+  .btn.block{width:100%}
+  .row-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .muted{color:var(--muted);font-size:13px}
+  .msg{font-size:13px;margin-top:8px;min-height:1em;color:var(--green-d)}
+  /* price list */
+  .pl{display:grid;gap:6px}
+  .pl-row{display:grid;grid-template-columns:minmax(0,1fr) 92px auto;gap:6px;align-items:center;border-bottom:1px solid var(--line);padding-bottom:6px}
+  .pl-row .nm{font-size:14px;font-weight:600}
+  .pl-row .nm small{display:block;font-weight:400;color:var(--muted)}
+  .money-in{position:relative}
+  .money-in:before{content:"$";position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:14px}
+  .money-in input{padding-left:20px}
+  .pl-row input{padding:7px 8px 7px 20px;font-size:15px}
+  /* line items */
+  .li{border:1.5px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px;display:grid;grid-template-columns:70px minmax(0,1fr) auto 34px;gap:6px 8px;align-items:center}
+  .li .desc{grid-column:1 / -1}
+  .li input{padding:8px 9px;font-size:15px}
+  .li .money-in input{padding-left:20px}
+  .li .lt{font-weight:800;text-align:right;min-width:86px;font-variant-numeric:tabular-nums}
+  .li .rm{width:34px;height:34px;border-radius:9px;border:1.5px solid var(--line);background:#fff;color:var(--red);font-size:18px;cursor:pointer;line-height:1}
+  .li .lbl{font-size:11px;color:var(--muted);font-weight:600;margin:0 0 2px}
+  .empty{border:1.5px dashed var(--line);border-radius:12px;padding:14px;text-align:center}
+  /* totals */
+  .tot div{display:flex;justify-content:space-between;padding:4px 0;font-variant-numeric:tabular-nums}
+  .tot .grand{font-size:18px;font-weight:800;border-top:2px solid var(--ink);margin-top:4px;padding-top:8px}
+  .tot .dep{color:var(--green-d);font-weight:700}
+  .inline{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+  .check{display:flex;gap:8px;align-items:center;font-weight:600;font-size:14px;margin-top:12px}
+  .check input{width:20px;height:20px}
+  /* mode toggle */
+  .seg{display:inline-flex;border:2px solid var(--green);border-radius:11px;overflow:hidden}
+  .seg button{border:0;background:#fff;color:var(--green);font:inherit;font-weight:700;padding:7px 14px;cursor:pointer}
+  .seg button.on{background:var(--green);color:#fff}
+  .doc-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  /* the document */
+  .doc{border:1px solid var(--line);border-radius:10px;overflow-x:auto;background:#fff;font-size:13px;color:#1d2420}
+  .doc .dh{background:var(--green-d);color:#fff;padding:16px 18px;display:flex;justify-content:space-between;gap:12px}.doc .dh>div:first-child{min-width:0;word-break:break-word}
+  .doc .dh .bn{font-size:18px;font-weight:800}
+  .doc .dh .bt{font-size:11px;opacity:.85}
+  .doc .dh .dt{text-align:right;margin-left:auto}
+  .doc .dh .dt b{display:block;font-size:22px;letter-spacing:2px}
+  .doc .dh .demo{display:inline-block;white-space:nowrap;background:var(--accent);color:#2b1d00;font-size:10px;font-weight:800;border-radius:4px;padding:1px 6px;margin-top:4px}
+  .doc .db{padding:16px 18px}
+  .doc .meta{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+  .doc .meta h4{margin:0 0 3px;font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted)}
+  .doc .meta .kv{display:grid;grid-template-columns:auto 1fr;gap:1px 10px}
+  .doc .meta .kv span:nth-child(odd){color:var(--muted)}
+  .doc .notes{background:var(--bg);border-radius:8px;padding:8px 10px;margin-bottom:12px;white-space:pre-wrap;word-break:break-word}
+  .doc table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  .doc th{background:var(--green-l);color:var(--green-d);text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:6px}
+  .doc td{border-bottom:1px solid var(--line);padding:6px;vertical-align:top;word-break:break-word}
+  .doc .r{text-align:right;white-space:nowrap}
+  .doc .dt-tot{margin:10px 0 0 auto;max-width:280px;font-variant-numeric:tabular-nums}
+  .doc .dt-tot div{display:flex;justify-content:space-between;padding:3px 0}
+  .doc .dt-tot .g{font-weight:800;font-size:15px;border-top:2px solid #1d2420;padding-top:5px;margin-top:3px}
+  .doc .dt-tot .b{font-weight:800;color:var(--green-d);background:var(--green-l);padding:5px 6px;border-radius:6px;margin-top:4px}
+  .doc .terms{margin-top:14px;font-size:11px;color:var(--muted)}
+  .doc .df{border-top:1px solid var(--line);padding:8px 18px;font-size:10px;color:var(--muted);text-align:center}
+  .bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);box-shadow:0 -6px 20px rgba(20,40,25,.10);padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;z-index:5}
+  .bar small{display:block;color:var(--muted);font-size:12px}
+  .bar strong{font-size:19px;font-variant-numeric:tabular-nums}
+  footer{text-align:center;color:var(--muted);font-size:12px;padding:0 16px 30px}
+  @media (max-width:420px){header h1{font-size:22px}.card{padding:14px}.doc{font-size:12px}.doc .meta{grid-template-columns:1fr}.doc .dh,.doc .db{padding:12px}.doc .dh{flex-direction:column;gap:6px}.doc .dh .dt{text-align:left;margin-left:0}.doc .dh .dt b{display:inline;margin-right:8px}.doc th,.doc td{padding:5px 3px}.doc th{font-size:10px;letter-spacing:0}}
+  /* Print: only the document (fallback "Print / Save as PDF") */
+  @media print{
+    @page{size:letter;margin:12mm}
+    body{background:#fff;padding:0}
+    .demo-bar,header,footer,.bar,.col-edit,.doc-head,.doc-actions,.no-print{display:none!important}
+    main{display:block;margin:0;padding:0;max-width:none}
+    .card{box-shadow:none;padding:0}
+    .doc{border:0;font-size:12px}
+    .doc .dh,.doc th,.doc .dt-tot .b,.doc .notes,.doc .dh .demo{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .doc tr{break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+<div class="demo-bar">DEMO by Zoracle: placeholder prices only, not real Thomson Landscaping rates. Nothing you type leaves this browser.</div>
+<header><div class="wrap">
+  <div class="brand" id="brand">Thomson Landscaping (demo)<small id="area"></small></div>
+  <h1>Quote &amp; Invoice Assistant</h1>
+  <p>Type the customer and your job notes, pick from your price list, and get a clean branded quote. One tap turns it into an invoice, and it downloads as a PDF.</p>
+  <a class="back" href="../">&larr; Back to the instant estimator demo</a>
+</div></header>
+
+<main>
+<div class="col col-edit">
+  <!-- 1. Customer -->
+  <section class="card">
+    <h2>1. Customer <span class="tag">DEMO FIELDS</span></h2>
+    <div class="grid2 stack">
+      <div><label for="cName">Name</label><input id="cName" autocomplete="off" placeholder="Jane Sample"></div>
+      <div><label for="cPhone">Phone</label><input id="cPhone" type="tel" autocomplete="off" placeholder="519-555-0123"></div>
+      <div><label for="cEmail">Email</label><input id="cEmail" type="email" autocomplete="off" placeholder="jane@example.com"></div>
+      <div><label for="cAddr">Job address</label><input id="cAddr" autocomplete="off" placeholder="12 Sample St, Paris ON"></div>
+    </div>
+    <div class="row-btns"><button class="btn ghost small" id="sampleBtn" type="button">Fill sample customer + notes</button></div>
+  </section>
+
+  <!-- 2. Job notes -->
+  <section class="card">
+    <h2>2. Job notes</h2>
+    <textarea id="notes" placeholder="e.g. Weekly mowing for the season, fall cleanup, regrade 800 sq ft along the back fence with topsoil and seed, plant 2 trees by the driveway."></textarea>
+    <div class="row-btns"><button class="btn small" id="suggestBtn" type="button">Suggest line items from notes</button></div>
+    <div class="msg" id="suggestMsg"></div>
+    <p class="muted" style="margin:4px 0 0">Simple keyword matching in your browser (mow, cleanup, grading + sq ft, trees, snow/plow). No AI service is called. Notes print on the quote.</p>
+  </section>
+
+  <!-- 3. Price list -->
+  <section class="card">
+    <h2>3. Price list <span class="tag">PLACEHOLDER RATES</span></h2>
+    <p class="muted" style="margin:0 0 10px">Not Thomson Landscaping's real prices. Edit any rate; tap <b>+ Add</b> to put it on the quote. Before HST.</p>
+    <div class="pl" id="priceList"></div>
+    <div class="row-btns"><button class="btn ghost small" id="resetRates" type="button">Reset placeholder rates</button></div>
+  </section>
+
+  <!-- 4. Line items -->
+  <section class="card">
+    <h2>4. Line items</h2>
+    <div id="items"></div>
+    <div class="row-btns"><button class="btn ghost small" id="addBlank" type="button">+ Custom line</button></div>
+  </section>
+
+  <!-- 5. Totals -->
+  <section class="card">
+    <h2>5. Discount, HST &amp; deposit</h2>
+    <div class="inline">
+      <div><label for="discType">Discount</label>
+        <select id="discType"><option value="none">None</option><option value="pct">Percent (%)</option><option value="fixed">Fixed ($)</option></select></div>
+      <div><label for="discVal">Amount</label><input id="discVal" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0"></div>
+      <div><label for="depPct">Deposit (% of total)</label><input id="depPct" type="number" inputmode="decimal" min="0" max="100" step="1"></div>
+      <div><label for="docDate">Quote date</label><input id="docDate" type="date"></div>
+    </div>
+    <div class="tot" style="margin-top:14px">
+      <div><span>Subtotal</span><b id="tSub">$0.00</b></div>
+      <div><span id="tDiscLbl">Discount</span><b id="tDisc">-$0.00</b></div>
+      <div><span>After discount</span><b id="tNet">$0.00</b></div>
+      <div><span id="tTaxLbl">HST (13%)</span><b id="tTax">$0.00</b></div>
+      <div class="grand"><span>Total</span><span id="tTotal">$0.00</span></div>
+      <div class="dep"><span id="tDepLbl">Deposit (50%)</span><span id="tDep">$0.00</span></div>
+      <div><span>Balance</span><b id="tBal">$0.00</b></div>
+    </div>
+    <label class="check"><input type="checkbox" id="depPaid" checked> On the invoice, show the deposit as received</label>
+  </section>
+</div>
+
+<!-- Document -->
+<div class="col col-doc">
+  <section class="card">
+    <div class="doc-head">
+      <div class="seg" role="tablist"><button id="mQuote" class="on" type="button">Quote</button><button id="mInv" type="button">Invoice</button></div>
+      <button class="btn accent small" id="convertBtn" type="button">Convert to Invoice &rarr;</button>
+    </div>
+    <div class="doc" id="doc"></div>
+    <div class="row-btns doc-actions">
+      <button class="btn" id="pdfBtn" type="button">Download PDF</button>
+      <button class="btn ghost" id="printBtn" type="button">Print / Save as PDF</button>
+      <button class="btn ghost" id="resetBtn" type="button">Reset demo</button>
+    </div>
+    <p class="muted no-print" style="margin:10px 0 0">The PDF is made right here in your browser. Nothing is uploaded, emailed or stored on a server. Demo data is kept only in this browser so a refresh doesn't wipe it; <b>Reset demo</b> clears it.</p>
+  </section>
+</div>
+</main>
+
+<div class="bar">
+  <div><small id="barLbl">Quote total</small><strong id="barTotal">$0.00</strong></div>
+  <div style="display:flex;gap:8px"><button class="btn ghost" id="barView" type="button">View</button><button class="btn" id="barPdf" type="button">Download PDF</button></div>
+</div>
+<footer>Quote &amp; invoice assistant demo built by Zoracle · zoracle.ca</footer>
+
+<script src="vendor/jspdf.umd.min.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+/* ---------- money: all math in integer cents ---------- */
+const rc = x => Math.round(x + (x >= 0 ? 1e-7 : -1e-7));            // round half away from zero, guards float noise
+const toCents = v => { const n = parseFloat(v); return isFinite(n) && n > 0 ? rc(n * 100) : 0; };
+const toNum = v => { const n = parseFloat(v); return isFinite(n) && n > 0 ? n : 0; };
+const fmt = c => (c < 0 ? "-$" : "$") + (Math.abs(c) / 100).toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtQty = q => Number.isInteger(q) ? String(q) : String(+q.toFixed(3));
+const unitStr = (q, u) => !u ? "" : " " + (q !== 1 && /^(visit|cleanup|tree|season|hour|each|yard|bag)$/.test(u) ? (u === "each" ? u : u + "s") : u);
+const pctStr = p => String(+(+p).toFixed(3));
+
+/* ---------- dates ---------- */
+const iso = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+const fromIso = s => { const [y, m, d] = String(s).split("-").map(Number); return y ? new Date(y, m - 1, d) : new Date(); };
+const addDays = (s, n) => { const d = fromIso(s); d.setDate(d.getDate() + n); return iso(d); };
+const nice = s => fromIso(s).toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" });
+
+/* ---------- state (demo only, own localStorage key) ---------- */
+function freshState(){
+  const today = iso(new Date());
+  const seq = String(1000 + Math.floor(Math.random() * 9000));
+  return {
+    customer: { name: "", phone: "", email: "", addr: "" }, notes: "",
+    rates: Object.fromEntries(CONFIG.priceList.map(p => [p.id, String(p.rate)])),
+    items: [], discType: "none", discVal: "", depPct: String(CONFIG.depositPct),
+    mode: "quote", date: today, invoiceDate: null, depPaid: true,
+    quoteNo: CONFIG.quotePrefix + today.slice(0, 4) + "-" + seq,
+    invoiceNo: CONFIG.invoicePrefix + today.slice(0, 4) + "-" + seq
+  };
+}
+let st;
+try { st = Object.assign(freshState(), JSON.parse(localStorage.getItem(CONFIG.storageKey) || "null") || {}); } catch (e) { st = freshState(); }
+let noSave = false;
+const save = () => { if (noSave) return; try { localStorage.setItem(CONFIG.storageKey, JSON.stringify(st)); } catch (e) {} };
+let uid = Date.now();
+
+/* ---------- calculations ---------- */
+function compute(){
+  const lines = st.items.map(it => {
+    const qty = toNum(it.qty), unit = toCents(it.price);
+    return { ...it, q: qty, unitC: unit, totalC: rc(qty * unit) };
+  });
+  const sub = lines.reduce((a, l) => a + l.totalC, 0);
+  let disc = 0, dv = toNum(st.discVal), discLabel = "Discount";
+  if (st.discType === "pct"){ dv = Math.min(dv, 100); disc = rc(sub * dv / 100); discLabel = "Discount (" + pctStr(dv) + "%)"; }
+  else if (st.discType === "fixed"){ disc = Math.min(toCents(st.discVal), sub); }
+  const net = sub - disc;
+  const tax = rc(net * CONFIG.taxRate / 100);
+  const total = net + tax;
+  const depPct = Math.min(toNum(st.depPct), 100);
+  const dep = rc(total * depPct / 100);
+  return { lines, sub, disc, discLabel, net, tax, total, depPct, dep, bal: total - dep };
+}
+
+/* ---------- price list ---------- */
+function renderPriceList(){
+  $("priceList").innerHTML = CONFIG.priceList.map(p => `
+    <div class="pl-row">
+      <div class="nm">${esc(p.name)}<small>per ${esc(p.unit)} · placeholder</small></div>
+      <div class="money-in"><input type="number" inputmode="decimal" min="0" step="0.01" data-rate="${p.id}" value="${esc(st.rates[p.id])}" aria-label="Rate for ${esc(p.name)}"></div>
+      <button class="btn small" type="button" data-add="${p.id}">+ Add</button>
+    </div>`).join("");
+}
+$("priceList").addEventListener("input", e => { const id = e.target.dataset.rate; if (id){ st.rates[id] = e.target.value; save(); } });
+$("priceList").addEventListener("click", e => { const id = e.target.dataset.add; if (id){ addFromList(id, 1); renderItems(); update(); } });
+function addFromList(id, qty, note){
+  const p = CONFIG.priceList.find(x => x.id === id);
+  st.items.push({ id: "l" + (uid++), desc: p.name + (note ? " - " + note : ""), unit: p.unit, qty: String(qty), price: String(st.rates[id] ?? p.rate) });
+}
+$("resetRates").onclick = () => { st.rates = freshState().rates; renderPriceList(); save(); };
+
+/* ---------- line items ---------- */
+function renderItems(){
+  const box = $("items");
+  if (!st.items.length){ box.innerHTML = `<div class="empty muted">No line items yet. Add from the price list, use <b>Suggest line items from notes</b>, or add a custom line.</div>`; return; }
+  box.innerHTML = st.items.map(it => `
+    <div class="li" data-id="${it.id}">
+      <div class="desc"><input data-f="desc" value="${esc(it.desc)}" placeholder="Description" aria-label="Description"></div>
+      <div><div class="lbl">Qty</div><input data-f="qty" type="number" inputmode="decimal" min="0" step="any" value="${esc(it.qty)}" aria-label="Quantity"></div>
+      <div><div class="lbl">Unit price${it.unit ? " / " + esc(it.unit) : ""}</div><div class="money-in"><input data-f="price" type="number" inputmode="decimal" min="0" step="0.01" value="${esc(it.price)}" aria-label="Unit price"></div></div>
+      <div><div class="lbl" style="text-align:right">Line total</div><div class="lt" data-lt>$0.00</div></div>
+      <div><div class="lbl">&nbsp;</div><button class="rm" type="button" data-rm title="Remove line" aria-label="Remove line">&times;</button></div>
+    </div>`).join("");
+}
+$("items").addEventListener("input", e => {
+  const row = e.target.closest(".li"), f = e.target.dataset.f; if (!row || !f) return;
+  const it = st.items.find(x => x.id === row.dataset.id); if (it){ it[f] = e.target.value; update(); }
+});
+$("items").addEventListener("click", e => {
+  if (!e.target.hasAttribute("data-rm")) return;
+  const id = e.target.closest(".li").dataset.id; st.items = st.items.filter(x => x.id !== id); renderItems(); update();
+});
+$("addBlank").onclick = () => { st.items.push({ id: "l" + (uid++), desc: "", unit: "", qty: "1", price: "" }); renderItems(); update(); const ins = $("items").querySelectorAll('[data-f="desc"]'); ins[ins.length - 1].focus(); };
+
+/* ---------- suggest from notes (keyword matcher, no external calls) ---------- */
+function suggest(text){
+  const t = " " + text.toLowerCase().replace(/,(?=\d{3})/g, "") + " ", out = [];
+  const num = re => { const m = t.match(re); return m ? parseFloat(m[1]) : null; };
+  const area = num(/(\d+(?:\.\d+)?)\s*(?:sq\.?\s*ft|sqft|square\s*f(?:ee|oo)t|sf)\b/);
+  if (/\bmow|grass cut|lawn cut|cut(?:ting)? (?:the )?(?:lawn|grass)|lawn care|weekly cut/.test(t)){
+    let q = num(/(\d+)\s*(?:cuts|visits|mows)\b/) || (/bi-?weekly|every (?:other|two|2) weeks?/.test(t) ? CONFIG.seasonVisits.biweekly : /weekly|every week/.test(t) ? CONFIG.seasonVisits.weekly : 1);
+    out.push(["mow", q, q > 1 ? q + " visits" : ""]);
+  }
+  const spring = /spring\s*clean/.test(t), fall = /fall\s*clean|autumn\s*clean|leaf|leaves/.test(t);
+  if (spring) out.push(["cleanSpring", 1]);
+  if (fall) out.push(["cleanFall", 1]);
+  if (!spring && !fall && /clean\s*-?\s*up|cleanup/.test(t)){ const m = new Date().getMonth(); out.push([m >= 2 && m <= 6 ? "cleanSpring" : "cleanFall", 1]); }
+  if (/\b(?:re-?)?grad(?:e|ing)\b|level(?:l?ing)?\b/.test(t)) out.push(["grading", area || 1, area ? "" : "set the area"]);
+  if (/topsoil|top soil|\bseed|overseed/.test(t)) out.push(["topsoil", area || 1, area ? "" : "set the area"]);
+  if (/\btrees?\b/.test(t)){
+    const words = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 };
+    let q = num(/(\d+)\s+(?:\w+\s+){0,2}trees?\b/); if (!q){ const w = t.match(/\b(one|two|three|four|five|six)\s+(?:\w+\s+){0,2}trees?\b/); q = w ? words[w[1]] : 1; }
+    out.push([/small tree|whip|sapling/.test(t) ? "treeSmall" : "treeMed", q]);
+  }
+  if (/snow|plow|plough/.test(t)){
+    if (/commercial|parking|plaza|lot\b/.test(t)) out.push(["snowCom", 1]);
+    else if (/per (?:visit|push|storm)|one[- ]time|single visit/.test(t)) out.push(["snowVisit", num(/(\d+)\s*(?:visits|pushes|storms)\b/) || 1]);
+    else out.push(["snowRes", 1]);
+    if (/walkway|walk way|steps|sidewalk|shovel/.test(t)) out.push(["snowWalk", 1]);
+  }
+  return out;
+}
+$("suggestBtn").onclick = () => {
+  const found = suggest($("notes").value);
+  if (!found.length){ $("suggestMsg").textContent = "No matches. Try words like mow, weekly, fall cleanup, grade 800 sq ft, 2 trees, snow plow."; return; }
+  found.forEach(([id, q, note]) => addFromList(id, q, note));
+  $("suggestMsg").textContent = "Added " + found.length + " line item" + (found.length > 1 ? "s" : "") + ". Check quantities and prices below.";
+  renderItems(); update();
+};
+
+/* ---------- document ---------- */
+function docModel(){
+  const c = compute(), inv = st.mode === "invoice";
+  const invDate = st.invoiceDate || iso(new Date());
+  return { c, inv,
+    title: inv ? "INVOICE" : "QUOTE", no: inv ? st.invoiceNo : st.quoteNo,
+    meta: inv
+      ? [["Invoice #", st.invoiceNo], ["Invoice date", nice(invDate)], ["Due date", nice(addDays(invDate, CONFIG.invoiceTermsDays))], ["Quote ref.", st.quoteNo]]
+      : [["Quote #", st.quoteNo], ["Date", nice(st.date)], ["Valid until", nice(addDays(st.date, CONFIG.quoteValidDays))]],
+    depLabel: inv ? (st.depPaid ? "Deposit received" : "Deposit (not yet received)") : "Deposit to book (" + pctStr(c.depPct) + "%)",
+    balLabel: inv ? "Balance due" : "Balance on completion",
+    balC: inv && !st.depPaid ? c.total : c.bal,
+    terms: (inv ? CONFIG.invoiceTerms + " Balance due by " + nice(addDays(invDate, CONFIG.invoiceTermsDays)) + "." : CONFIG.quoteTerms)
+  };
+}
+function renderDoc(){
+  const m = docModel(), c = m.c, cu = st.customer;
+  const billTo = [cu.name || "Customer name", cu.addr, cu.phone, cu.email].filter(Boolean).map(esc).join("<br>");
+  const rows = c.lines.length ? c.lines.map(l => `<tr><td>${esc(l.desc || "Item")}</td><td class="r">${fmtQty(l.q)}${esc(unitStr(l.q, l.unit))}</td><td class="r">${fmt(l.unitC)}</td><td class="r">${fmt(l.totalC)}</td></tr>`).join("")
+    : `<tr><td colspan="4" class="muted">No line items yet</td></tr>`;
+  $("doc").innerHTML = `
+    <div class="dh"><div><div class="bn">${esc(CONFIG.businessName)}</div><div class="bt">${esc(CONFIG.tagline)}</div><div class="bt">${esc(CONFIG.serviceArea)}</div><div class="bt">${esc(CONFIG.phone)}</div><div class="bt">${esc(CONFIG.email)}</div></div>
+      <div class="dt"><b id="docTitle">${m.title}</b><span id="docNo">${esc(m.no)}</span><br><span class="demo">DEMO · PLACEHOLDER RATES</span></div></div>
+    <div class="db">
+      <div class="meta"><div><h4>${m.inv ? "Bill to" : "Prepared for"}</h4>${billTo}</div>
+        <div><h4>Details</h4><div class="kv">${m.meta.map(([k, v]) => `<span>${k}</span><span>${esc(v)}</span>`).join("")}<span>HST #</span><span>${esc(CONFIG.hstNumber)}</span></div></div></div>
+      ${st.notes.trim() ? `<div class="notes"><b>Job notes:</b> ${esc(st.notes.trim())}</div>` : ""}
+      <table><thead><tr><th>Description</th><th class="r">Qty</th><th class="r">Unit price</th><th class="r">Amount</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="dt-tot">
+        <div><span>Subtotal</span><span data-d="sub">${fmt(c.sub)}</span></div>
+        ${c.disc ? `<div><span>${esc(c.discLabel)}</span><span data-d="disc">${fmt(-c.disc)}</span></div><div><span>After discount</span><span data-d="net">${fmt(c.net)}</span></div>` : ""}
+        <div><span>${esc(CONFIG.taxLabel)}</span><span data-d="tax">${fmt(c.tax)}</span></div>
+        <div class="g"><span>Total (CAD)</span><span data-d="total">${fmt(c.total)}</span></div>
+        <div><span>${esc(m.depLabel)}</span><span data-d="dep">${m.inv && st.depPaid ? fmt(-c.dep) : fmt(c.dep)}</span></div>
+        <div class="b"><span>${m.balLabel}</span><span data-d="bal">${fmt(m.balC)}</span></div>
+      </div>
+      <div class="terms">${esc(m.terms)}</div>
+    </div>
+    <div class="df">Demo document generated by Zoracle's Quote &amp; Invoice Assistant. Placeholder rates and details, not a real ${m.inv ? "invoice" : "quote"}. Built by Zoracle, zoracle.ca</div>`;
+}
+
+/* ---------- PDF (vendored jsPDF, fully in-browser) ---------- */
+function buildPdf(){
+  const { jsPDF } = window.jspdf;
+  const m = docModel(), c = m.c, cu = st.customer;
+  const pdf = new jsPDF({ unit: "pt", format: "letter" });
+  const W = 612, H = 792, L = 44, R = W - 44;
+  const G = [31, 74, 40], GL = [232, 242, 234], MUT = [93, 106, 98], INK = [29, 36, 32];
+  pdf.setProperties({ title: CONFIG.businessName + " " + m.title + " " + m.no, author: "Zoracle demo", subject: "Demo document, placeholder rates", creator: "Zoracle Quote & Invoice Assistant demo" });
+  const txt = (s, x, y, o) => pdf.text(String(s), x, y, o);
+  const font = (st_, sz, col) => { pdf.setFont("helvetica", st_); pdf.setFontSize(sz); pdf.setTextColor(...(col || INK)); };
+  // header band
+  pdf.setFillColor(...G); pdf.rect(0, 0, W, 96, "F");
+  font("bold", 20, [255, 255, 255]); txt(CONFIG.businessName, L, 40);
+  font("normal", 9, [220, 235, 224]); txt(CONFIG.tagline, L, 55); txt(CONFIG.serviceArea, L, 67); txt(CONFIG.phone + "  |  " + CONFIG.email, L, 79);
+  font("bold", 24, [255, 255, 255]); txt(m.title, R, 42, { align: "right", charSpace: 2 });
+  font("normal", 10, [255, 255, 255]); txt(m.no, R, 58, { align: "right" });
+  pdf.setFillColor(226, 166, 59); pdf.roundedRect(R - 132, 66, 132, 15, 3, 3, "F");
+  font("bold", 7.5, [43, 29, 0]); txt("DEMO  |  PLACEHOLDER RATES", R - 66, 76, { align: "center" });
+  // meta
+  let y = 124;
+  font("bold", 8, MUT); txt((m.inv ? "BILL TO" : "PREPARED FOR"), L, y); txt("DETAILS", 330, y);
+  font("normal", 10.5); let yl = y + 15;
+  [cu.name || "Customer name", cu.addr, cu.phone, cu.email].filter(Boolean).forEach((s, i) => { pdf.splitTextToSize(String(s), 260).forEach(ln => { font(i ? "normal" : "bold", 10.5); txt(ln, L, yl); yl += 14; }); });
+  let yr = y + 15;
+  m.meta.concat([["HST #", CONFIG.hstNumber]]).forEach(([k, v]) => { font("normal", 10, MUT); txt(k, 330, yr); font("normal", 10); txt(v, 410, yr); yr += 14; });
+  y = Math.max(yl, yr) + 8;
+  // notes
+  if (st.notes.trim()){
+    font("normal", 9.5); const nl = pdf.splitTextToSize("Job notes: " + st.notes.trim().replace(/\s*\n\s*/g, " "), R - L - 20).slice(0, 8);
+    const h = nl.length * 12.5 + 12; pdf.setFillColor(246, 248, 246); pdf.roundedRect(L, y, R - L, h, 4, 4, "F");
+    nl.forEach((ln, i) => txt(ln, L + 10, y + 16 + i * 12.5)); y += h + 14;
+  }
+  // table
+  const cx = { d: L + 8, q: 380, u: 470, a: R - 8 };
+  const head = () => { pdf.setFillColor(...GL); pdf.rect(L, y, R - L, 20, "F"); font("bold", 8.5, G);
+    txt("DESCRIPTION", cx.d, y + 13); txt("QTY", cx.q, y + 13, { align: "right" }); txt("UNIT PRICE", cx.u, y + 13, { align: "right" }); txt("AMOUNT", cx.a, y + 13, { align: "right" }); y += 20; };
+  const room = need => { if (y + need > H - 60){ pdf.addPage(); y = 50; head(); } };
+  head();
+  (c.lines.length ? c.lines : [{ desc: "No line items yet", q: 0, unitC: 0, totalC: 0, unit: "" }]).forEach(l => {
+    font("normal", 10); const dl = pdf.splitTextToSize(l.desc || "Item", cx.q - 70 - cx.d); const h = dl.length * 13 + 10;
+    room(h); dl.forEach((ln, i) => txt(ln, cx.d, y + 15 + i * 13));
+    txt(fmtQty(l.q) + unitStr(l.q, l.unit), cx.q, y + 15, { align: "right" }); txt(fmt(l.unitC), cx.u, y + 15, { align: "right" }); txt(fmt(l.totalC), cx.a, y + 15, { align: "right" });
+    y += h; pdf.setDrawColor(221, 229, 223); pdf.setLineWidth(0.7); pdf.line(L, y, R, y);
+  });
+  // totals
+  const trows = [["Subtotal", fmt(c.sub)]];
+  if (c.disc) trows.push([c.discLabel, fmt(-c.disc)], ["After discount", fmt(c.net)]);
+  trows.push([CONFIG.taxLabel, fmt(c.tax)]);
+  room(trows.length * 16 + 90); y += 18;
+  const TL = 330;
+  trows.forEach(([k, v]) => { font("normal", 10.5, MUT); txt(k, TL, y); font("normal", 10.5); txt(v, cx.a, y, { align: "right" }); y += 16; });
+  pdf.setDrawColor(...INK); pdf.setLineWidth(1.4); pdf.line(TL, y - 8, R, y - 8); y += 8;
+  font("bold", 13); txt("Total (CAD)", TL, y); txt(fmt(c.total), cx.a, y, { align: "right" }); y += 18;
+  font("normal", 10.5, MUT); txt(m.depLabel, TL, y); font("normal", 10.5); txt(m.inv && st.depPaid ? fmt(-c.dep) : fmt(c.dep), cx.a, y, { align: "right" }); y += 10;
+  pdf.setFillColor(...GL); pdf.roundedRect(TL - 6, y, R - TL + 6, 22, 4, 4, "F");
+  font("bold", 11.5, G); txt(m.balLabel, TL, y + 15); txt(fmt(m.balC), cx.a, y + 15, { align: "right" }); y += 44;
+  // terms
+  font("normal", 9, MUT); const tl = pdf.splitTextToSize(m.terms, R - L); room(tl.length * 12 + 10); tl.forEach(ln => { txt(ln, L, y); y += 12; });
+  // footer on every page
+  const n = pdf.getNumberOfPages();
+  for (let i = 1; i <= n; i++){ pdf.setPage(i); pdf.setDrawColor(221, 229, 223); pdf.setLineWidth(0.7); pdf.line(L, H - 42, R, H - 42);
+    font("normal", 8, MUT); txt("DEMO document: placeholder rates and details, not a real " + (m.inv ? "invoice" : "quote") + ".  Built by Zoracle, zoracle.ca", L, H - 28);
+    txt("Page " + i + " of " + n, R, H - 28, { align: "right" }); }
+  return pdf;
+}
+function downloadPdf(){
+  if (!window.jspdf){ alert("PDF library didn't load. Use Print / Save as PDF instead."); return; }
+  const m = docModel(); buildPdf().save("Thomson-Landscaping-demo-" + (m.inv ? "Invoice" : "Quote") + "-" + m.no + ".pdf");
+}
+$("pdfBtn").onclick = downloadPdf; $("barPdf").onclick = downloadPdf; $("printBtn").onclick = () => window.print();
+$("barView").onclick = () => $("doc").scrollIntoView({ behavior: "smooth", block: "start" });
+
+/* ---------- mode ---------- */
+function setMode(mode){
+  st.mode = mode; if (mode === "invoice" && !st.invoiceDate) st.invoiceDate = iso(new Date());
+  update(); if (mode === "invoice") $("doc").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+$("convertBtn").onclick = () => setMode(st.mode === "invoice" ? "quote" : "invoice");
+$("mQuote").onclick = () => setMode("quote"); $("mInv").onclick = () => setMode("invoice");
+
+/* ---------- form bindings ---------- */
+const bind = (id, get, set) => { $(id).addEventListener("input", () => { set($(id).value); update(); }); $(id).addEventListener("change", () => { set($(id).value); update(); }); };
+[["cName", "name"], ["cPhone", "phone"], ["cEmail", "email"], ["cAddr", "addr"]].forEach(([id, k]) => bind(id, null, v => st.customer[k] = v));
+bind("notes", null, v => st.notes = v);
+bind("discType", null, v => st.discType = v);
+bind("discVal", null, v => st.discVal = v);
+bind("depPct", null, v => st.depPct = v);
+bind("docDate", null, v => st.date = v || iso(new Date()));
+$("depPaid").onchange = () => { st.depPaid = $("depPaid").checked; update(); };
+function fillForm(){
+  $("cName").value = st.customer.name; $("cPhone").value = st.customer.phone; $("cEmail").value = st.customer.email; $("cAddr").value = st.customer.addr;
+  $("notes").value = st.notes; $("discType").value = st.discType; $("discVal").value = st.discVal; $("depPct").value = st.depPct; $("docDate").value = st.date; $("depPaid").checked = st.depPaid;
+}
+const SAMPLE = { customer: { name: "Jane Sample", phone: "519-555-0123", email: "jane@example.com", addr: "12 Sample St, Paris ON" },
+  notes: "Weekly mowing for the season. Fall cleanup, lots of leaves. Regrade 800 sq ft along the back fence with topsoil and seed. Plant 2 trees by the driveway." };
+$("sampleBtn").onclick = () => { st.customer = { ...SAMPLE.customer }; st.notes = SAMPLE.notes; fillForm(); update(); };
+$("resetBtn").onclick = () => { if (!confirm("Clear this demo quote and start over?")) return; try { localStorage.removeItem(CONFIG.storageKey); } catch (e) {} st = freshState(); fillForm(); renderPriceList(); renderItems(); update(); };
+
+/* ---------- update ---------- */
+function update(){
+  const c = compute(), m = docModel();
+  $("items").querySelectorAll(".li").forEach(row => { const l = c.lines.find(x => x.id === row.dataset.id); if (l) row.querySelector("[data-lt]").textContent = fmt(l.totalC); });
+  $("tSub").textContent = fmt(c.sub); $("tDiscLbl").textContent = c.discLabel; $("tDisc").textContent = fmt(-c.disc); $("tNet").textContent = fmt(c.net);
+  $("tTaxLbl").textContent = CONFIG.taxLabel; $("tTax").textContent = fmt(c.tax); $("tTotal").textContent = fmt(c.total);
+  $("tDepLbl").textContent = "Deposit (" + pctStr(c.depPct) + "%)"; $("tDep").textContent = fmt(c.dep); $("tBal").textContent = fmt(c.bal);
+  $("discVal").disabled = st.discType === "none";
+  $("mQuote").classList.toggle("on", !m.inv); $("mInv").classList.toggle("on", m.inv);
+  $("convertBtn").innerHTML = m.inv ? "&larr; Back to Quote" : "Convert to Invoice &rarr;";
+  $("barLbl").textContent = m.inv ? "Invoice balance due" : "Quote total"; $("barTotal").textContent = fmt(m.inv ? m.balC : c.total);
+  renderDoc(); save();
+}
+
+$("brand").firstChild.textContent = CONFIG.businessName;
+$("area").textContent = "Serving " + CONFIG.serviceArea;
+
+/* Preview mode for screenshots/links: ?preview=quote or ?preview=invoice (sample data, doesn't touch saved demo state) */
+const pv = new URLSearchParams(location.search).get("preview");
+if (pv === "quote" || pv === "invoice"){
+  st = freshState(); st.customer = { ...SAMPLE.customer }; st.notes = SAMPLE.notes;
+  suggest(SAMPLE.notes).forEach(([id, q, note]) => addFromList(id, q, note));
+  st.discType = "pct"; st.discVal = "10"; st.mode = pv; if (pv === "invoice") st.invoiceDate = st.date;
+  noSave = true;
+}
+fillForm(); renderPriceList(); renderItems(); update();
+</script>
+</body>
+</html>
